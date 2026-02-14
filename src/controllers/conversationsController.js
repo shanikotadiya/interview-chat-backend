@@ -12,6 +12,7 @@ function parsePaginationQuery(req) {
 }
 
 async function getConversations(req, res) {
+  console.log("Requested platform:", req.query.platform);
   const { page, limit } = parsePaginationQuery(req);
   const all = await conversationService.getConversations();
   const result = paginate(all, page, limit);

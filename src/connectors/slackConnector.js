@@ -6,6 +6,7 @@
 const { WebClient } = require('@slack/web-api');
 
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
+console.log("Slack token exists:", !!process.env.SLACK_BOT_TOKEN);
 
 /** In-memory cache: userId -> { real_name, name } to avoid repeated users.info calls */
 const userCache = new Map();
@@ -28,6 +29,7 @@ async function resolveUserName(userId) {
     userCache.set(userId, entry);
     return entry.real_name || entry.name || userId;
   } catch (err) {
+    console.error("Slack API error:", err.data || err);
     userCache.set(userId, { real_name: userId, name: userId });
     return userId;
   }
@@ -40,20 +42,29 @@ function getCachedDisplayName(userId) {
 }
 
 /**
- * Fetches real Slack public channels where the bot is a member.
+ * Fetches real Slack public channels.
+ * Temporarily includes all public channels (is_member filter removed for debugging).
  * @returns {Promise<Array<{ id: string, name: string }>>}
  */
 async function getSlackChannels() {
   if (!process.env.SLACK_BOT_TOKEN) return [];
 
-  const result = await slackClient.conversations.list({ types: 'public_channel' });
+  console.log("Fetching Slack channels...");
+  let result;
+  try {
+    result = await slackClient.conversations.list({ types: 'public_channel' });
+  } catch (err) {
+    console.error("Slack API error:", err.data || err);
+    throw err;
+  }
+  console.log("Slack API raw response:", result);
+  console.log("Slack channels count:", result.channels?.length);
+
   const channels = result.channels || [];
-  return channels
-    .filter((channel) => channel.is_member === true)
-    .map((channel) => ({
-      id: channel.id,
-      name: channel.name,
-    }));
+  return channels.map((channel) => ({
+    id: channel.id,
+    name: channel.name,
+  }));
 }
 
 /**
@@ -65,22 +76,27 @@ async function getSlackChannels() {
 async function getSlackMessages(channelId) {
   if (!process.env.SLACK_BOT_TOKEN || !channelId) return [];
 
+  console.log("Fetching messages for channel:", channelId);
   try {
     const result = await slackClient.conversations.history({ channel: channelId });
     const messages = result.messages || [];
     const uniqueUserIds = [...new Set(messages.map((m) => m.user).filter(Boolean))];
     await Promise.all(uniqueUserIds.map((id) => resolveUserName(id)));
 
-    const mapped = messages.map((message) => ({
-      id: message.ts,
-      text: message.text ?? '',
-      sender: getCachedDisplayName(message.user),
-      createdAt: message.ts,
-      platform: 'slack',
-    }));
-    mapped.sort((a, b) => parseFloat(a.createdAt) - parseFloat(b.createdAt));
+    const mapped = messages.map((message) => {
+      const createdAt = new Date(parseFloat(message.ts) * 1000);
+      return {
+        id: message.ts,
+        text: message.text ?? '',
+        sender: getCachedDisplayName(message.user),
+        createdAt: createdAt.toISOString(),
+        platform: 'slack',
+      };
+    });
+    mapped.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     return mapped;
   } catch (err) {
+    console.error("Slack API error:", err.data || err);
     return [];
   }
 }
@@ -161,6 +177,7 @@ async function sendSlackMessage(channelId, text) {
       text,
     });
   } catch (err) {
+    console.error("Slack API error:", err.data || err);
     const wrapped = new Error(err.message || 'Slack API error');
     wrapped.code = err.data?.error || 'SLACK_API_ERROR';
     wrapped.originalError = err;
