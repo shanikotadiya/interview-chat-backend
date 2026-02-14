@@ -11,16 +11,16 @@ function parsePaginationQuery(req) {
   return { page, limit };
 }
 
-function getConversations(req, res) {
+async function getConversations(req, res) {
   const { page, limit } = parsePaginationQuery(req);
-  const all = conversationService.getConversations();
+  const all = await conversationService.getConversations();
   const result = paginate(all, page, limit);
   res.json(result);
 }
 
-function searchConversations(req, res) {
+async function searchConversations(req, res) {
   const { page, limit } = parsePaginationQuery(req);
-  const matches = searchService.searchConversations(req.query.q);
+  const matches = await searchService.searchConversations(req.query.q);
   const result = paginate(matches, page, limit);
   res.json(result);
 }

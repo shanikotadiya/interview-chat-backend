@@ -6,11 +6,11 @@ const { getConversationsFromAll } = require('../connectors');
  * @param {string} q - Search query (empty/whitespace returns [])
  * @returns {Array} Filtered conversations, sorted by updatedAt descending
  */
-function searchConversations(q) {
+async function searchConversations(q) {
   const trimmed = typeof q === 'string' ? q.trim() : '';
   if (trimmed === '') return [];
 
-  const all = getConversationsFromAll();
+  const all = await getConversationsFromAll();
   const lower = trimmed.toLowerCase();
 
   return all.filter((conv) => {

@@ -17,7 +17,7 @@ const messagesByConversation = {
   'conv-b2': [],
 };
 
-function getConversations() {
+async function getConversations() {
   return getConversationsFromAll();
 }
 

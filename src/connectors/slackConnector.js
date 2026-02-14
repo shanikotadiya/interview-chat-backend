@@ -1,34 +1,30 @@
 /**
  * Slack connector. Returns raw Slack API format only.
- * No normalization; use normalization.service for app-normalized shape.
+ * Uses @slack/web-api for real channels; normalization.service for app-normalized shape.
  */
 
-// Mock Slack conversations (channels) – realistic Slack API shape
-const MOCK_SLACK_CHANNELS = [
-  {
-    channel_id: 'C001',
-    channel_name: 'general',
-    unread_count: 2,
-    last_message: 'Hello everyone',
-    updated_at: '2025-02-14T12:00:00Z',
-  },
-  {
-    channel_id: 'C002',
-    channel_name: 'random',
-    unread_count: 0,
-    last_message: 'Quick question',
-    updated_at: '2025-02-14T11:30:00Z',
-  },
-  {
-    channel_id: 'C003',
-    channel_name: 'engineering',
-    unread_count: 5,
-    last_message: 'PR ready for review',
-    updated_at: '2025-02-14T10:15:00Z',
-  },
-];
+const { WebClient } = require('@slack/web-api');
 
-// Mock Slack messages by channel_id – realistic Slack API shape
+const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
+
+/**
+ * Fetches real Slack public channels where the bot is a member.
+ * @returns {Promise<Array<{ id: string, name: string }>>}
+ */
+async function getSlackChannels() {
+  if (!process.env.SLACK_BOT_TOKEN) return [];
+
+  const result = await slackClient.conversations.list({ types: 'public_channel' });
+  const channels = result.channels || [];
+  return channels
+    .filter((channel) => channel.is_member === true)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+    }));
+}
+
+// Mock Slack messages by channel_id (real history would use conversations.history)
 const MOCK_SLACK_MESSAGES = {
   C001: [
     { ts: '1707890123.000001', user: 'U001', text: 'Hello everyone', created_at: '2025-02-14T11:00:00Z' },
@@ -43,8 +39,19 @@ const MOCK_SLACK_MESSAGES = {
   ],
 };
 
-function fetchConversations() {
-  return MOCK_SLACK_CHANNELS.map((ch) => ({ ...ch }));
+/**
+ * Fetches conversations (channels) in raw Slack shape for the pipeline.
+ * Maps getSlackChannels() to channel_id, channel_name, etc.
+ */
+async function fetchConversations() {
+  const channels = await getSlackChannels();
+  return channels.map((ch) => ({
+    channel_id: ch.id,
+    channel_name: ch.name,
+    unread_count: 0,
+    last_message: '',
+    updated_at: new Date().toISOString(),
+  }));
 }
 
 function fetchMessages(channelId) {
@@ -52,4 +59,4 @@ function fetchMessages(channelId) {
   return list.map((m) => ({ ...m }));
 }
 
-module.exports = { fetchConversations, fetchMessages };
+module.exports = { getSlackChannels, fetchConversations, fetchMessages };

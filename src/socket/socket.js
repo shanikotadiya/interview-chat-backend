@@ -28,9 +28,10 @@ function createSimulatedMessage(conversationId) {
 }
 
 function pickRandomConversation() {
-  const conversations = conversationService.getConversations();
-  if (conversations.length === 0) return null;
-  return conversations[Math.floor(Math.random() * conversations.length)];
+  return conversationService.getConversations().then((conversations) => {
+    if (!conversations.length) return null;
+    return conversations[Math.floor(Math.random() * conversations.length)];
+  });
 }
 
 function startSimulation(socket) {
@@ -39,12 +40,12 @@ function startSimulation(socket) {
       clearInterval(intervalId);
       return;
     }
-    const conversation = pickRandomConversation();
-    if (!conversation) return;
-
-    const message = createSimulatedMessage(conversation.id);
-    conversationService.addMessage(conversation.id, message);
-    socket.emit('new_message', message);
+    pickRandomConversation().then((conversation) => {
+      if (!conversation) return;
+      const message = createSimulatedMessage(conversation.id);
+      conversationService.addMessage(conversation.id, message);
+      socket.emit('new_message', message);
+    });
   }, SIMULATION_INTERVAL_MS);
 
   return intervalId;
