@@ -1,16 +1,46 @@
-# Interview Chat Backend
+# Unified Chat Connector
 
-Node.js backend with Express and Socket.io (JavaScript).
+A full-stack chat integration platform that connects Slack (real API) and Gmail (mocked API) into a unified dashboard interface.
 
-## Setup
+This project demonstrates real-time communication, API integration, clean architecture, and scalable project structure using modern web technologies.
 
-```bash
-npm install
-```
+---
 
-## Run
+# 🚀 Project Overview
 
-- `npm run dev` — development (watch mode)
-- `npm start` — production
+The application allows users to:
 
-Server runs on port 3001 (or `PORT` env).
+- View Slack channels
+- Fetch Slack messages
+- Display messages in a modern dashboard UI
+- Poll for real-time updates
+- Maintain clean separation between frontend and backend
+
+Slack is integrated using the official Slack Web API.
+Gmail connector is implemented as a mocked API layer.
+
+---
+
+# 🏗️ Architecture
+
+Frontend and Backend are completely separated.
+
+Frontend:
+- Next.js (SSR enabled)
+- Redux (no redux-thunk)
+- SCSS for styling
+- Polling-based updates (no socket.io in production)
+
+Backend:
+- Node.js
+- Express.js
+- Slack Web API
+- RESTful architecture
+- Environment-based configuration
+
+Deployment:
+- Frontend: Vercel
+- Backend: Vercel (Serverless REST only)
+
+---
+
