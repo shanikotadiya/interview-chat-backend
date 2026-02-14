@@ -24,7 +24,33 @@ async function getSlackChannels() {
     }));
 }
 
-// Mock Slack messages by channel_id (real history would use conversations.history)
+/**
+ * Fetches real Slack channel history. Returns empty array on failure or missing token.
+ * @param {string} channelId - Slack channel ID
+ * @returns {Promise<Array<{ id: string, text: string, sender: string, createdAt: string, platform: string }>>}
+ */
+async function getSlackMessages(channelId) {
+  if (!process.env.SLACK_BOT_TOKEN || !channelId) return [];
+
+  try {
+    const result = await slackClient.conversations.history({ channel: channelId });
+    const messages = result.messages || [];
+    const mapped = messages
+      .map((message) => ({
+        id: message.ts,
+        text: message.text ?? '',
+        sender: message.user ?? '',
+        createdAt: message.ts,
+        platform: 'slack',
+      }))
+      .sort((a, b) => parseFloat(a.createdAt) - parseFloat(b.createdAt));
+    return mapped;
+  } catch (err) {
+    return [];
+  }
+}
+
+// Mock Slack messages by channel_id (fallback when no token or API failure)
 const MOCK_SLACK_MESSAGES = {
   C001: [
     { ts: '1707890123.000001', user: 'U001', text: 'Hello everyone', created_at: '2025-02-14T11:00:00Z' },
@@ -54,9 +80,22 @@ async function fetchConversations() {
   }));
 }
 
-function fetchMessages(channelId) {
+/**
+ * Fetches messages for the pipeline. Uses getSlackMessages when token is set;
+ * maps to raw shape (ts, user, text, created_at) for normalization. Falls back to mock on failure.
+ */
+async function fetchMessages(channelId) {
+  if (process.env.SLACK_BOT_TOKEN) {
+    const list = await getSlackMessages(channelId);
+    return list.map((m) => ({
+      ts: m.id,
+      user: m.sender,
+      text: m.text,
+      created_at: m.createdAt,
+    }));
+  }
   const list = MOCK_SLACK_MESSAGES[channelId] || [];
   return list.map((m) => ({ ...m }));
 }
 
-module.exports = { getSlackChannels, fetchConversations, fetchMessages };
+module.exports = { getSlackChannels, getSlackMessages, fetchConversations, fetchMessages };

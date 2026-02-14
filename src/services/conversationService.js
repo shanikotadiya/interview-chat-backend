@@ -21,11 +21,11 @@ async function getConversations() {
   return getConversationsFromAll();
 }
 
-function getMessages(conversationId) {
+async function getMessages(conversationId) {
   let list = [];
   if (normalization.isSlackConversationId(conversationId)) {
     const channelId = normalization.getSlackChannelId(conversationId);
-    const raw = slackConnector.fetchMessages(channelId);
+    const raw = await slackConnector.fetchMessages(channelId);
     list = raw.map((m) => normalization.normalizeSlackMessage(m, channelId)).filter(Boolean);
   } else if (normalization.isGmailConversationId(conversationId)) {
     const threadId = normalization.getGmailThreadId(conversationId);
