@@ -1,6 +1,7 @@
 const conversationService = require('../services/conversationService');
 
 const SIMULATION_INTERVAL_MS = 15 * 1000;
+const TYPING_DURATION_MS = 3000;
 
 const SIMULATED_BODIES = [
   'Simulated message',
@@ -49,12 +50,40 @@ function startSimulation(socket) {
   return intervalId;
 }
 
+function setupTypingIndicator(socket, user) {
+  const pendingStops = new Map();
+
+  function clearPending(conversationId) {
+    const id = pendingStops.get(conversationId);
+    if (id) clearTimeout(id);
+    pendingStops.delete(conversationId);
+  }
+
+  socket.on('typing_start', (conversationId) => {
+    if (!conversationId) return;
+    const cid = String(conversationId);
+    clearPending(cid);
+    socket.broadcast.emit('user_typing', { conversationId: cid, userId: user });
+    const timeoutId = setTimeout(() => {
+      pendingStops.delete(cid);
+      socket.broadcast.emit('typing_stop', { conversationId: cid, userId: user });
+    }, TYPING_DURATION_MS);
+    pendingStops.set(cid, timeoutId);
+  });
+
+  socket.on('disconnect', () => {
+    pendingStops.forEach((id) => clearTimeout(id));
+    pendingStops.clear();
+  });
+}
+
 function attachSocket(io) {
   io.on('connection', (socket) => {
     const user = socket.handshake.auth?.userId ?? socket.id;
     console.log('User connected:', user, '(socket:', socket.id + ')');
 
     const intervalId = startSimulation(socket);
+    setupTypingIndicator(socket, user);
 
     socket.on('disconnect', () => {
       clearInterval(intervalId);
