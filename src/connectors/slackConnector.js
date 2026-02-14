@@ -98,4 +98,58 @@ async function fetchMessages(channelId) {
   return list.map((m) => ({ ...m }));
 }
 
-module.exports = { getSlackChannels, getSlackMessages, fetchConversations, fetchMessages };
+const SLACK_PREFIX = 'slack-';
+
+/**
+ * Sends a message to a Slack channel. Returns the sent message in app-normalized format.
+ * @param {string} channelId - Slack channel ID
+ * @param {string} text - Message text
+ * @returns {Promise<{ id: string, conversationId: string, body: string, createdAt: string, platform: string }>}
+ * @throws {Error} When token is missing, channelId/text invalid, or Slack API errors
+ */
+async function sendSlackMessage(channelId, text) {
+  if (!process.env.SLACK_BOT_TOKEN) {
+    const err = new Error('Slack is not configured (missing SLACK_BOT_TOKEN)');
+    err.code = 'SLACK_NOT_CONFIGURED';
+    throw err;
+  }
+  if (!channelId || typeof text !== 'string') {
+    const err = new Error('channelId and text are required');
+    err.code = 'INVALID_ARGUMENTS';
+    throw err;
+  }
+
+  let response;
+  try {
+    response = await slackClient.chat.postMessage({
+      channel: channelId,
+      text,
+    });
+  } catch (err) {
+    const wrapped = new Error(err.message || 'Slack API error');
+    wrapped.code = err.data?.error || 'SLACK_API_ERROR';
+    wrapped.originalError = err;
+    throw wrapped;
+  }
+
+  if (!response.ok) {
+    const err = new Error(response.error || 'Slack postMessage failed');
+    err.code = 'SLACK_API_ERROR';
+    throw err;
+  }
+
+  const ts = response.ts;
+  const createdAt = ts
+    ? new Date(parseFloat(ts) * 1000).toISOString()
+    : new Date().toISOString();
+
+  return {
+    id: ts,
+    conversationId: `${SLACK_PREFIX}${channelId}`,
+    body: text,
+    createdAt,
+    platform: 'slack',
+  };
+}
+
+module.exports = { getSlackChannels, getSlackMessages, sendSlackMessage, fetchConversations, fetchMessages };
