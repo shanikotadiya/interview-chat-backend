@@ -1,32 +1,23 @@
-const config = require('./config');
-const http = require('http');
-const express = require('express');
-const cors = require('cors');
-const { Server } = require('socket.io');
+const app = require('./app');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: config.frontendUrl } });
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  const config = require('./config');
+  const http = require('http');
+  const { Server } = require('socket.io');
 
-const PORT = config.port;
+  const server = http.createServer(app);
+  const io = new Server(server, { cors: { origin: config.frontendUrl } });
 
-const { mountApiRoutes } = require('./routes');
-const { notFound, errorMiddleware } = require('./middleware/errorHandler');
+  const PORT = config.port;
 
-app.use(cors({ origin: config.frontendUrl }));
-app.use(express.json());
-app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
+  const { attachSocket } = require('./socket/socket');
+  attachSocket(io);
 
-mountApiRoutes(app);
+  app.set('io', io);
 
-app.use(notFound);
-app.use(errorMiddleware);
-
-const { attachSocket } = require('./socket/socket');
-attachSocket(io);
-
-app.set('io', io);
-
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
