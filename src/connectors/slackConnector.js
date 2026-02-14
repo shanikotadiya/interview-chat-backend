@@ -1,6 +1,6 @@
 /**
  * Slack connector. Returns raw Slack API format only.
- * No normalization; use adapters/slackAdapter for app-normalized shape.
+ * No normalization; use normalization.service for app-normalized shape.
  */
 
 // Mock Slack conversations (channels) – realistic Slack API shape

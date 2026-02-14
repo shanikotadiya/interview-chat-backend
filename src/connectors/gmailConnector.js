@@ -1,6 +1,6 @@
 /**
  * Gmail connector. Returns raw Gmail API format only.
- * No normalization; use adapters/gmailAdapter for app-normalized shape.
+ * No normalization; use normalization.service for app-normalized shape.
  */
 
 // Mock Gmail conversations (threads) – realistic Gmail API shape

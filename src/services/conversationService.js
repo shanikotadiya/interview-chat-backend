@@ -1,6 +1,5 @@
 const { getConversationsFromAll, slackConnector, gmailConnector } = require('../connectors');
-const slackAdapter = require('../adapters/slackAdapter');
-const gmailAdapter = require('../adapters/gmailAdapter');
+const normalization = require('./normalization.service');
 
 // In-memory messages by conversationId (replace with DB/connectors as needed)
 const messagesByConversation = {
@@ -24,14 +23,14 @@ function getConversations() {
 
 function getMessages(conversationId) {
   let list = [];
-  if (slackAdapter.isSlackConversationId(conversationId)) {
-    const channelId = slackAdapter.slackChannelIdFromConversationId(conversationId);
+  if (normalization.isSlackConversationId(conversationId)) {
+    const channelId = normalization.getSlackChannelId(conversationId);
     const raw = slackConnector.fetchMessages(channelId);
-    list = slackAdapter.normalizeMessages(raw, channelId);
-  } else if (gmailAdapter.isGmailConversationId(conversationId)) {
-    const threadId = gmailAdapter.gmailThreadIdFromConversationId(conversationId);
+    list = raw.map((m) => normalization.normalizeSlackMessage(m, channelId)).filter(Boolean);
+  } else if (normalization.isGmailConversationId(conversationId)) {
+    const threadId = normalization.getGmailThreadId(conversationId);
     const raw = gmailConnector.fetchMessages(threadId);
-    list = gmailAdapter.normalizeMessages(raw, threadId);
+    list = raw.map((m) => normalization.normalizeGmailMessage(m, threadId)).filter(Boolean);
   }
   const inMemory = messagesByConversation[conversationId] || [];
   list = [...list, ...inMemory];
