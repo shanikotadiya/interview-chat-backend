@@ -9,7 +9,12 @@ if (process.env.VERCEL || process.env.VERCEL_ENV) {
   const { Server } = require('socket.io');
 
   const server = http.createServer(app);
-  const io = new Server(server, { cors: { origin: config.frontendUrl } });
+  const io = new Server(server, {
+    cors: {
+      origin: config.corsOrigin || config.frontendUrl,
+      methods: ['GET', 'POST'],
+    },
+  });
 
   const PORT = config.port;
 

@@ -1,7 +1,8 @@
 require('dotenv').config();
 
-const frontendUrl = process.env.FRONTEND_URL 
-const corsOriginRaw = process.env.CORS_ORIGIN || process.env.FRONTEND_URL;
+const defaultFrontend = 'http://localhost:3000';
+const frontendUrl = process.env.FRONTEND_URL || defaultFrontend;
+const corsOriginRaw = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || defaultFrontend;
 const corsOrigin = corsOriginRaw.includes(',')
   ? corsOriginRaw.split(',').map((s) => s.trim()).filter(Boolean)
   : corsOriginRaw;
