@@ -7,6 +7,38 @@ const { WebClient } = require('@slack/web-api');
 
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
 
+/** In-memory cache: userId -> { real_name, name } to avoid repeated users.info calls */
+const userCache = new Map();
+
+/**
+ * Resolves display name for a user ID. Uses cache; fetches via users.info if missing.
+ * @param {string} userId - Slack user ID
+ * @returns {Promise<string>} real_name OR name, or userId if fetch fails
+ */
+async function resolveUserName(userId) {
+  if (!userId) return '';
+  const cached = userCache.get(userId);
+  if (cached) return cached.real_name || cached.name || userId;
+
+  try {
+    const result = await slackClient.users.info({ user: userId });
+    if (!result.ok || !result.user) return userId;
+    const user = result.user;
+    const entry = { real_name: user.real_name ?? '', name: user.name ?? '' };
+    userCache.set(userId, entry);
+    return entry.real_name || entry.name || userId;
+  } catch (err) {
+    userCache.set(userId, { real_name: userId, name: userId });
+    return userId;
+  }
+}
+
+function getCachedDisplayName(userId) {
+  if (!userId) return '';
+  const entry = userCache.get(userId);
+  return entry ? (entry.real_name || entry.name || userId) : userId;
+}
+
 /**
  * Fetches real Slack public channels where the bot is a member.
  * @returns {Promise<Array<{ id: string, name: string }>>}
@@ -25,7 +57,8 @@ async function getSlackChannels() {
 }
 
 /**
- * Fetches real Slack channel history. Returns empty array on failure or missing token.
+ * Fetches real Slack channel history. Resolves sender IDs to real_name/name via users.info (cached).
+ * Returns empty array on failure or missing token.
  * @param {string} channelId - Slack channel ID
  * @returns {Promise<Array<{ id: string, text: string, sender: string, createdAt: string, platform: string }>>}
  */
@@ -35,15 +68,17 @@ async function getSlackMessages(channelId) {
   try {
     const result = await slackClient.conversations.history({ channel: channelId });
     const messages = result.messages || [];
-    const mapped = messages
-      .map((message) => ({
-        id: message.ts,
-        text: message.text ?? '',
-        sender: message.user ?? '',
-        createdAt: message.ts,
-        platform: 'slack',
-      }))
-      .sort((a, b) => parseFloat(a.createdAt) - parseFloat(b.createdAt));
+    const uniqueUserIds = [...new Set(messages.map((m) => m.user).filter(Boolean))];
+    await Promise.all(uniqueUserIds.map((id) => resolveUserName(id)));
+
+    const mapped = messages.map((message) => ({
+      id: message.ts,
+      text: message.text ?? '',
+      sender: getCachedDisplayName(message.user),
+      createdAt: message.ts,
+      platform: 'slack',
+    }));
+    mapped.sort((a, b) => parseFloat(a.createdAt) - parseFloat(b.createdAt));
     return mapped;
   } catch (err) {
     return [];
