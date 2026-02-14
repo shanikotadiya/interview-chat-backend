@@ -10,10 +10,7 @@ if (process.env.VERCEL || process.env.VERCEL_ENV) {
 
   const server = http.createServer(app);
   const io = new Server(server, {
-    cors: {
-      origin: config.corsOrigin || config.frontendUrl,
-      methods: ['GET', 'POST'],
-    },
+    cors: { origin: true, methods: ['GET', 'POST'] },
   });
 
   const PORT = config.port;
