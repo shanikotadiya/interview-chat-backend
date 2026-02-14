@@ -1,17 +1,19 @@
-require('dotenv').config();
+const config = require('./config');
 const http = require('http');
 const express = require('express');
+const cors = require('cors');
 const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, { cors: { origin: config.frontendUrl } });
 
-const PORT = process.env.PORT || 3027;
+const PORT = config.port;
 
 const { mountApiRoutes } = require('./routes');
 const { notFound, errorMiddleware } = require('./middleware/errorHandler');
 
+app.use(cors({ origin: config.frontendUrl }));
 app.use(express.json());
 app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
 
