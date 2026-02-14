@@ -1,10 +1,6 @@
-const connectorA = require('./connectorA');
-const connectorB = require('./connectorB');
 const slackConnector = require('./slackConnector');
 const gmailConnector = require('./gmailConnector');
 const normalization = require('../services/normalization.service');
-
-const connectors = [connectorA, connectorB];
 
 function callWithRetry(fn, retries = 1) {
   try {
@@ -33,17 +29,15 @@ async function callWithRetryAsync(fn, retries = 1) {
 }
 
 async function getConversationsFromAll() {
-  const fromConnectors = connectors.flatMap((c) => callWithRetry(() => c.getConversations()));
   const rawSlack = await callWithRetryAsync(() => slackConnector.fetchConversations());
   const fromSlack = rawSlack.map(normalization.normalizeSlackConversation).filter(Boolean);
   const rawGmail = callWithRetry(() => gmailConnector.fetchConversations());
   const fromGmail = rawGmail.map(normalization.normalizeGmailConversation).filter(Boolean);
-  const merged = [...fromConnectors, ...fromSlack, ...fromGmail];
+  const merged = [...fromSlack, ...fromGmail];
   return merged.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
 }
 
 module.exports = {
-  connectors,
   slackConnector,
   gmailConnector,
   getConversationsFromAll,

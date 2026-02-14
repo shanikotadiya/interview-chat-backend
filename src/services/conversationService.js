@@ -1,21 +1,8 @@
 const { getConversationsFromAll, slackConnector, gmailConnector } = require('../connectors');
 const normalization = require('./normalization.service');
 
-// In-memory messages by conversationId (replace with DB/connectors as needed)
-const messagesByConversation = {
-  'conv-a1': [
-    { id: 'm1', conversationId: 'conv-a1', body: 'Hello', createdAt: '2025-02-14T11:00:00Z' },
-    { id: 'm2', conversationId: 'conv-a1', body: 'Hi there', createdAt: '2025-02-14T11:01:00Z' },
-    { id: 'm3', conversationId: 'conv-a1', body: 'How are you?', createdAt: '2025-02-14T11:02:00Z' },
-  ],
-  'conv-a2': [
-    { id: 'm4', conversationId: 'conv-a2', body: 'Message in A2', createdAt: '2025-02-13T09:00:00Z' },
-  ],
-  'conv-b1': [
-    { id: 'm5', conversationId: 'conv-b1', body: 'B1 message', createdAt: '2025-02-14T11:30:00Z' },
-  ],
-  'conv-b2': [],
-};
+// In-memory messages by conversationId (e.g. from socket simulation)
+const messagesByConversation = {};
 
 async function getConversations() {
   return getConversationsFromAll();

@@ -8,64 +8,6 @@ const { WebClient } = require('@slack/web-api');
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
 console.log("Slack token exists:", !!process.env.SLACK_BOT_TOKEN);
 
-/** In-memory cache: userId -> { real_name, name } to avoid repeated users.info calls */
-const userCache = new Map();
-
-/**
- * Resolves display name for a user ID. Uses cache; fetches via users.info if missing.
- * @param {string} userId - Slack user ID
- * @returns {Promise<string>} real_name OR name, or userId if fetch fails
- */
-async function resolveUserName(userId) {
-  if (!userId) return '';
-  const cached = userCache.get(userId);
-  if (cached) return cached.real_name || cached.name || userId;
-
-  try {
-    const result = await slackClient.users.info({ user: userId });
-    if (!result.ok || !result.user) return userId;
-    const user = result.user;
-    const entry = { real_name: user.real_name ?? '', name: user.name ?? '' };
-    userCache.set(userId, entry);
-    return entry.real_name || entry.name || userId;
-  } catch (err) {
-    console.error("Slack API error:", err.data || err);
-    userCache.set(userId, { real_name: userId, name: userId });
-    return userId;
-  }
-}
-
-function getCachedDisplayName(userId) {
-  if (!userId) return '';
-  const entry = userCache.get(userId);
-  return entry ? (entry.real_name || entry.name || userId) : userId;
-}
-
-/** Slack mention format: <@U12345> or <@U12345|display> */
-const MENTION_REGEX = /<@(U[A-Z0-9]+)(?:\|[^>]*)?>/g;
-
-/**
- * Replaces <@USERID> in text with cached display name (real_name or name).
- */
-function replaceMentionsWithNames(text) {
-  if (!text || typeof text !== 'string') return '';
-  return text.replace(MENTION_REGEX, (_, userId) => getCachedDisplayName(userId));
-}
-
-/**
- * Extracts unique user IDs from text (e.g. <@U123> or <@U123|name>).
- */
-function extractUserIdsFromText(text) {
-  if (!text || typeof text !== 'string') return [];
-  const ids = [];
-  let match;
-  MENTION_REGEX.lastIndex = 0;
-  while ((match = MENTION_REGEX.exec(text)) !== null) {
-    ids.push(match[1]);
-  }
-  return ids;
-}
-
 /**
  * Fetches real Slack public channels.
  * Temporarily includes all public channels (is_member filter removed for debugging).
@@ -172,8 +114,6 @@ async function fetchMessages(channelId) {
   const list = MOCK_SLACK_MESSAGES[channelId] || [];
   return list.map((m) => ({ ...m }));
 }
-
-const SLACK_PREFIX = 'slack-';
 
 /**
  * Sends a message to a Slack channel. Returns the full normalized message (no { success: true }).
