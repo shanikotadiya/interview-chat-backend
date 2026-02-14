@@ -83,11 +83,9 @@ function attachSocket(io) {
     const user = socket.handshake.auth?.userId ?? socket.id;
     console.log('User connected:', user, '(socket:', socket.id + ')');
 
-    const intervalId = startSimulation(socket);
     setupTypingIndicator(socket, user);
 
     socket.on('disconnect', () => {
-      clearInterval(intervalId);
       console.log('User disconnected:', user, '(socket:', socket.id + ')');
     });
   });

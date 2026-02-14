@@ -2,48 +2,68 @@
  * Slack connector. Returns raw Slack API format only.
  * Uses @slack/web-api for real channels; normalization.service for app-normalized shape.
  */
-
+require("dotenv").config();
 const { WebClient } = require('@slack/web-api');
 
 const slackClient = new WebClient(process.env.SLACK_BOT_TOKEN);
-console.log("Slack token exists:", !!process.env.SLACK_BOT_TOKEN);
+let slackAuthWarned = false;
+let cachedBotUserId = null;
+
+async function getBotUserId() {
+  if (cachedBotUserId !== null) return cachedBotUserId;
+  if (!process.env.SLACK_BOT_TOKEN) return null;
+  try {
+    const result = await slackClient.auth.test();
+    cachedBotUserId = result.user_id || null;
+    return cachedBotUserId;
+  } catch {
+    return null;
+  }
+}
+
+function warnSlackAuth(context = '') {
+  if (!slackAuthWarned) {
+    slackAuthWarned = true;
+    console.warn("Slack not authenticated (missing or invalid SLACK_BOT_TOKEN).", context);
+  }
+}
 
 /**
- * Fetches real Slack public channels.
- * Temporarily includes all public channels (is_member filter removed for debugging).
+ * Fetches real Slack public channels. Returns [] when token is missing or API fails (e.g. not_authed).
  * @returns {Promise<Array<{ id: string, name: string }>>}
  */
 async function getSlackChannels() {
   if (!process.env.SLACK_BOT_TOKEN) return [];
 
-  console.log("Fetching Slack channels...");
-  let result;
   try {
-    result = await slackClient.conversations.list({ types: 'public_channel' });
+    const result = await slackClient.conversations.list({ types: 'public_channel' });
+    const channels = result.channels || [];
+    return channels.map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+    }));
   } catch (err) {
-    console.error("Slack API error:", err.data || err);
-    throw err;
+    const errData = err.data || err;
+    if (errData?.error === 'not_authed' || errData?.error === 'invalid_auth') {
+      warnSlackAuth("Skipping Slack channels.");
+    } else {
+      console.error("Slack API error:", errData);
+    }
+    return [];
   }
-  console.log("Slack API raw response:", result);
-  console.log("Slack channels count:", result.channels?.length);
-
-  const channels = result.channels || [];
-  return channels.map((channel) => ({
-    id: channel.id,
-    name: channel.name,
-  }));
 }
 
 /**
  * Fetches Slack channel history and returns normalized messages (oldest first).
+ * Filters out system messages (subtype). Sets isOwnMessage for bot/own messages.
  * @param {string} channelId - Slack channel ID
- * @returns {Promise<Array<{ id: string, channelId: string, text: string, senderName: string, createdAt: string, platform: string }>>}
+ * @returns {Promise<Array<{ id, channelId, text, body, senderName, createdAt, platform, isOwnMessage }>>}
  */
 async function getSlackMessages(channelId) {
   if (!process.env.SLACK_BOT_TOKEN || !channelId) return [];
 
-  console.log(channelId);
   try {
+    const botUserId = await getBotUserId();
     const result = await slackClient.conversations.history({
       channel: channelId,
       limit: 50,
@@ -52,17 +72,29 @@ async function getSlackMessages(channelId) {
       (msg) => !msg.subtype && msg.type === 'message'
     );
     const messages = filtered.reverse();
-    const normalized = messages.map((msg) => ({
-      id: msg.ts,
-      channelId,
-      text: msg.text ?? '',
-      senderName: msg.user || 'Unknown',
-      createdAt: new Date(parseFloat(msg.ts) * 1000).toISOString(),
-      platform: 'slack',
-    }));
-    return normalized;
+    return messages.map((msg) => {
+      const isOwnMessage = (botUserId && msg.user === botUserId) || !!msg.bot_id;
+      const text = msg.text ?? '';
+      const createdAt = new Date(parseFloat(msg.ts) * 1000).toISOString();
+      return {
+        id: msg.ts,
+        ts: msg.ts,
+        channelId,
+        text,
+        body: text,
+        senderName: msg.user || 'Unknown',
+        createdAt,
+        platform: 'slack',
+        isOwnMessage,
+      };
+    });
   } catch (err) {
-    console.error("Slack API error:", err.data || err);
+    const errData = err.data || err;
+    if (errData?.error === 'not_authed' || errData?.error === 'invalid_auth') {
+      warnSlackAuth("Returning no messages for Slack.");
+    } else {
+      console.error("Slack API error:", errData);
+    }
     return [];
   }
 }
@@ -109,6 +141,7 @@ async function fetchMessages(channelId) {
       user: m.senderName,
       text: m.text,
       created_at: m.createdAt,
+      isOwnMessage: m.isOwnMessage,
     }));
   }
   const list = MOCK_SLACK_MESSAGES[channelId] || [];
@@ -161,6 +194,7 @@ async function sendSlackMessage(channelId, text) {
     senderName: 'You',
     createdAt: new Date(parseFloat(response.ts) * 1000).toISOString(),
     platform: 'slack',
+    isOwnMessage: true,
   };
 }
 

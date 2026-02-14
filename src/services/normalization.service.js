@@ -38,6 +38,7 @@ function normalizeSlackMessage(raw, channelId) {
     body: raw.text ?? '',
     createdAt: raw.created_at,
     platform: 'slack',
+    isOwnMessage: Boolean(raw.isOwnMessage),
   };
 }
 
