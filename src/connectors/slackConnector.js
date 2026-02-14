@@ -115,18 +115,45 @@ const MOCK_SLACK_MESSAGES = {
 };
 
 /**
+ * Fetches the latest message text and ts for a channel (for conversation list preview).
+ * @param {string} channelId
+ * @returns {Promise<{ text: string, ts: string }>}
+ */
+async function getLatestMessage(channelId) {
+  if (!process.env.SLACK_BOT_TOKEN || !channelId) return { text: '', ts: '' };
+  try {
+    const result = await slackClient.conversations.history({
+      channel: channelId,
+      limit: 1,
+    });
+    const msg = (result.messages || []).find((m) => !m.subtype && m.type === 'message');
+    if (!msg) return { text: '', ts: msg?.ts ?? '' };
+    return { text: msg.text ?? '', ts: msg.ts ?? '' };
+  } catch {
+    return { text: '', ts: '' };
+  }
+}
+
+/**
  * Fetches conversations (channels) in raw Slack shape for the pipeline.
- * Maps getSlackChannels() to channel_id, channel_name, etc.
+ * Includes last_message and updated_at from latest message per channel.
  */
 async function fetchConversations() {
   const channels = await getSlackChannels();
-  return channels.map((ch) => ({
-    channel_id: ch.id,
-    channel_name: ch.name,
-    unread_count: 0,
-    last_message: '',
-    updated_at: new Date().toISOString(),
-  }));
+  const withLatest = await Promise.all(
+    channels.map(async (ch) => {
+      const { text, ts } = await getLatestMessage(ch.id);
+      const updated_at = ts ? new Date(parseFloat(ts) * 1000).toISOString() : new Date().toISOString();
+      return {
+        channel_id: ch.id,
+        channel_name: ch.name,
+        unread_count: 0,
+        last_message: text,
+        updated_at,
+      };
+    })
+  );
+  return withLatest;
 }
 
 /**
