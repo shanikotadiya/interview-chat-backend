@@ -25,4 +25,22 @@ function getMessages(conversationId) {
   return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
-module.exports = { getConversations, getMessages };
+/**
+ * Add a message to in-memory store (normalized: id, conversationId, body, createdAt).
+ * Used by socket simulation and any other producers.
+ */
+function addMessage(conversationId, message) {
+  const normalized = {
+    id: message.id,
+    conversationId: String(conversationId),
+    body: message.body ?? '',
+    createdAt: message.createdAt || new Date().toISOString(),
+  };
+  if (!messagesByConversation[conversationId]) {
+    messagesByConversation[conversationId] = [];
+  }
+  messagesByConversation[conversationId].push(normalized);
+  return normalized;
+}
+
+module.exports = { getConversations, getMessages, addMessage };

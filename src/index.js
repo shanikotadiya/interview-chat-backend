@@ -16,10 +16,8 @@ app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
 
 mountApiRoutes(app);
 
-io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-  socket.on('disconnect', () => console.log('Client disconnected:', socket.id));
-});
+const { attachSocket } = require('./socket/socket');
+attachSocket(io);
 
 app.set('io', io);
 
