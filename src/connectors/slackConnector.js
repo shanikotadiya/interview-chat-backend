@@ -41,6 +41,31 @@ function getCachedDisplayName(userId) {
   return entry ? (entry.real_name || entry.name || userId) : userId;
 }
 
+/** Slack mention format: <@U12345> or <@U12345|display> */
+const MENTION_REGEX = /<@(U[A-Z0-9]+)(?:\|[^>]*)?>/g;
+
+/**
+ * Replaces <@USERID> in text with cached display name (real_name or name).
+ */
+function replaceMentionsWithNames(text) {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(MENTION_REGEX, (_, userId) => getCachedDisplayName(userId));
+}
+
+/**
+ * Extracts unique user IDs from text (e.g. <@U123> or <@U123|name>).
+ */
+function extractUserIdsFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  const ids = [];
+  let match;
+  MENTION_REGEX.lastIndex = 0;
+  while ((match = MENTION_REGEX.exec(text)) !== null) {
+    ids.push(match[1]);
+  }
+  return ids;
+}
+
 /**
  * Fetches real Slack public channels.
  * Temporarily includes all public channels (is_member filter removed for debugging).
@@ -80,14 +105,22 @@ async function getSlackMessages(channelId) {
   try {
     const result = await slackClient.conversations.history({ channel: channelId });
     const messages = result.messages || [];
-    const uniqueUserIds = [...new Set(messages.map((m) => m.user).filter(Boolean))];
+    const userIdsFromSenders = messages.map((m) => m.user).filter(Boolean);
+    const userIdsFromMentions = messages.flatMap((m) => extractUserIdsFromText(m.text ?? ''));
+    const uniqueUserIds = [...new Set([...userIdsFromSenders, ...userIdsFromMentions])];
     await Promise.all(uniqueUserIds.map((id) => resolveUserName(id)));
 
     const mapped = messages.map((message) => {
       const createdAt = new Date(parseFloat(message.ts) * 1000);
+      let text;
+      if (message.subtype === 'channel_join') {
+        text = 'User joined the channel';
+      } else {
+        text = replaceMentionsWithNames(message.text ?? '');
+      }
       return {
         id: message.ts,
-        text: message.text ?? '',
+        text,
         sender: getCachedDisplayName(message.user),
         createdAt: createdAt.toISOString(),
         platform: 'slack',
