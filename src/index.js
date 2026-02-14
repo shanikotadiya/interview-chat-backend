@@ -10,11 +10,15 @@ const io = new Server(server, { cors: { origin: '*' } });
 const PORT = process.env.PORT || 3027;
 
 const { mountApiRoutes } = require('./routes');
+const { notFound, errorMiddleware } = require('./middleware/errorHandler');
 
 app.use(express.json());
 app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
 
 mountApiRoutes(app);
+
+app.use(notFound);
+app.use(errorMiddleware);
 
 const { attachSocket } = require('./socket/socket');
 attachSocket(io);
