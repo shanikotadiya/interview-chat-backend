@@ -1,6 +1,7 @@
 const app = require('./app');
 
-if (process.env.VERCEL) {
+// On Vercel (serverless), export app so api/index.js can serve all routes
+if (process.env.VERCEL || process.env.VERCEL_ENV) {
   module.exports = app;
 } else {
   const config = require('./config');
