@@ -9,8 +9,12 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 const PORT = process.env.PORT || 3001;
 
+const { mountApiRoutes } = require('./routes');
+
 app.use(express.json());
 app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
+
+mountApiRoutes(app);
 
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
