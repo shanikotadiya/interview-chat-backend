@@ -1,9 +1,9 @@
-const app = require('./app');
+const app = require('../app');
 
 if (process.env.VERCEL) {
   module.exports = app;
 } else {
-  const config = require('./config');
+  const config = require('../config');
   const http = require('http');
   const { Server } = require('socket.io');
 
@@ -12,7 +12,7 @@ if (process.env.VERCEL) {
 
   const PORT = config.port;
 
-  const { attachSocket } = require('./socket/socket');
+  const { attachSocket } = require('../socket/socket');
   attachSocket(io);
 
   app.set('io', io);
