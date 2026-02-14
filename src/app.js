@@ -6,7 +6,13 @@ const { notFound, errorMiddleware } = require('./middleware/errorHandler');
 
 const app = express();
 
-app.use(cors({ origin: config.frontendUrl }));
+const corsOptions = {
+  origin: config.corsOrigin,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
 
