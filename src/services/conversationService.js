@@ -1,4 +1,5 @@
-const { getConversationsFromAll } = require('../connectors');
+const { getConversationsFromAll, slackConnector } = require('../connectors');
+const slackAdapter = require('../adapters/slackAdapter');
 
 // In-memory messages by conversationId (replace with DB/connectors as needed)
 const messagesByConversation = {
@@ -21,8 +22,15 @@ function getConversations() {
 }
 
 function getMessages(conversationId) {
-  const list = messagesByConversation[conversationId] || [];
-  return [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  let list = [];
+  if (slackAdapter.isSlackConversationId(conversationId)) {
+    const channelId = slackAdapter.slackChannelIdFromConversationId(conversationId);
+    const raw = slackConnector.fetchMessages(channelId);
+    list = slackAdapter.normalizeMessages(raw, channelId);
+  }
+  const inMemory = messagesByConversation[conversationId] || [];
+  list = [...list, ...inMemory];
+  return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 /**
