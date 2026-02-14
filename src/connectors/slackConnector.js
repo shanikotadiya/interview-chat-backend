@@ -93,41 +93,32 @@ async function getSlackChannels() {
 }
 
 /**
- * Fetches real Slack channel history. Resolves sender IDs to real_name/name via users.info (cached).
- * Returns empty array on failure or missing token.
+ * Fetches Slack channel history and returns normalized messages (oldest first).
  * @param {string} channelId - Slack channel ID
- * @returns {Promise<Array<{ id: string, text: string, sender: string, createdAt: string, platform: string }>>}
+ * @returns {Promise<Array<{ id: string, channelId: string, text: string, senderName: string, createdAt: string, platform: string }>>}
  */
 async function getSlackMessages(channelId) {
   if (!process.env.SLACK_BOT_TOKEN || !channelId) return [];
 
-  console.log("Fetching messages for channel:", channelId);
+  console.log(channelId);
   try {
-    const result = await slackClient.conversations.history({ channel: channelId });
-    const messages = result.messages || [];
-    const userIdsFromSenders = messages.map((m) => m.user).filter(Boolean);
-    const userIdsFromMentions = messages.flatMap((m) => extractUserIdsFromText(m.text ?? ''));
-    const uniqueUserIds = [...new Set([...userIdsFromSenders, ...userIdsFromMentions])];
-    await Promise.all(uniqueUserIds.map((id) => resolveUserName(id)));
-
-    const mapped = messages.map((message) => {
-      const createdAt = new Date(parseFloat(message.ts) * 1000);
-      let text;
-      if (message.subtype === 'channel_join') {
-        text = 'User joined the channel';
-      } else {
-        text = replaceMentionsWithNames(message.text ?? '');
-      }
-      return {
-        id: message.ts,
-        text,
-        sender: getCachedDisplayName(message.user),
-        createdAt: createdAt.toISOString(),
-        platform: 'slack',
-      };
+    const result = await slackClient.conversations.history({
+      channel: channelId,
+      limit: 50,
     });
-    mapped.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    return mapped;
+    const filtered = (result.messages || []).filter(
+      (msg) => !msg.subtype && msg.type === 'message'
+    );
+    const messages = filtered.reverse();
+    const normalized = messages.map((msg) => ({
+      id: msg.ts,
+      channelId,
+      text: msg.text ?? '',
+      senderName: msg.user || 'Unknown',
+      createdAt: new Date(parseFloat(msg.ts) * 1000).toISOString(),
+      platform: 'slack',
+    }));
+    return normalized;
   } catch (err) {
     console.error("Slack API error:", err.data || err);
     return [];
@@ -173,7 +164,7 @@ async function fetchMessages(channelId) {
     const list = await getSlackMessages(channelId);
     return list.map((m) => ({
       ts: m.id,
-      user: m.sender,
+      user: m.senderName,
       text: m.text,
       created_at: m.createdAt,
     }));
@@ -185,10 +176,10 @@ async function fetchMessages(channelId) {
 const SLACK_PREFIX = 'slack-';
 
 /**
- * Sends a message to a Slack channel. Returns the sent message in app-normalized format.
+ * Sends a message to a Slack channel. Returns the full normalized message (no { success: true }).
  * @param {string} channelId - Slack channel ID
  * @param {string} text - Message text
- * @returns {Promise<{ id: string, conversationId: string, body: string, createdAt: string, platform: string }>}
+ * @returns {Promise<{ id: string, channelId: string, text: string, senderName: string, createdAt: string, platform: string }>}
  * @throws {Error} When token is missing, channelId/text invalid, or Slack API errors
  */
 async function sendSlackMessage(channelId, text) {
@@ -223,16 +214,12 @@ async function sendSlackMessage(channelId, text) {
     throw err;
   }
 
-  const ts = response.ts;
-  const createdAt = ts
-    ? new Date(parseFloat(ts) * 1000).toISOString()
-    : new Date().toISOString();
-
   return {
-    id: ts,
-    conversationId: `${SLACK_PREFIX}${channelId}`,
-    body: text,
-    createdAt,
+    id: response.ts,
+    channelId,
+    text,
+    senderName: 'You',
+    createdAt: new Date(parseFloat(response.ts) * 1000).toISOString(),
     platform: 'slack',
   };
 }
