@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { mountApiRoutes } = require('./routes');
 const { notFound, errorMiddleware } = require('./middleware/errorHandler');
+const ratelimiter = require('./config/ratelimiter');
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use(ratelimiter)
 app.get('/', (req, res) => res.json({ message: 'Interview Chat API' }));
 
 mountApiRoutes(app);
